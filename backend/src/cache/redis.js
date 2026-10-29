@@ -3,6 +3,7 @@ const config = require('../config');
 
 const client = createClient({
   socket: { host: config.redis.host, port: config.redis.port },
+  database: config.redis.database,
 });
 
 client.on('error', (err) => console.error('❌ Redis error:', err.message));
