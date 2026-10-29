@@ -1,9 +1,13 @@
 const express = require('express');
 const cors = require('cors');
-const db = require('./db');
+const config = require('./src/config');
+const { pool } = require('./src/db/pool');
 const { client: redis, connectRedis } = require('./src/cache/redis');
+const studentRoutes = require('./src/routes/student.routes');
+const docsRoutes = require('./src/docs/swagger');
+const { notFound, errorHandler } = require('./src/middleware/errorHandler');
+
 const app = express();
-const PORT = process.env.PORT || 5000;
 
 app.use(cors({ origin: process.env.CORS_ORIGIN }));
 app.use(express.json());
@@ -14,12 +18,13 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/db-health', async (req, res) => {
   try {
-    await db.query('SELECT 1');
-    res.json({ status: 'ok', database: process.env.DB_NAME });
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', database: config.db.database });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
+
 app.get('/api/redis-health', async (req, res) => {
   try {
     await redis.set('health:ping', 'pong', { EX: 10 });
@@ -29,8 +34,15 @@ app.get('/api/redis-health', async (req, res) => {
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
+
+app.use('/api/students', studentRoutes);
+app.use('/api/docs', docsRoutes);
+
+app.use(notFound);
+app.use(errorHandler);
+
 connectRedis().catch((err) => console.error(err.message));
 
-app.listen(PORT, () => {
-  console.log(`[${process.env.APP_ENV}] Server listening on http://localhost:${PORT}`);
+app.listen(config.port, () => {
+  console.log(`[${process.env.APP_ENV}] Server listening on http://localhost:${config.port}`);
 });

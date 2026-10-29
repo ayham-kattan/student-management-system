@@ -16,5 +16,9 @@ module.exports = {
   redis: {
     host: process.env.REDIS_HOST || '127.0.0.1',
     port: parseInt(process.env.REDIS_PORT) || 6379,
+    ttl: {
+      list: parseInt(process.env.REDIS_TTL_LIST) || 60,
+      item: parseInt(process.env.REDIS_TTL_ITEM) || 300,
+    },
   },
 };
