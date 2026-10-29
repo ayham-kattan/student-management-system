@@ -1,22 +1,6 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import App from './App';
-
-const ayham = {
-  studentId: 1,
-  name: 'Ayham Kattan',
-  email: 'ayham@example.com',
-  phone: null,
-  department: 'CS',
-  createdDate: '2026-10-29T10:00:00.000Z',
-};
-
-const url = (path) => `${process.env.REACT_APP_API_URL || ''}/api${path}`;
-
-const json = (status, body) =>
-  Promise.resolve({ ok: status < 400, status, json: () => Promise.resolve(body) });
-
-const listOf = (rows) => json(200, { data: rows, meta: { page: 1, limit: 10, total: rows.length, totalPages: 1 } });
+import { apiUrl as url, ayham, json, lastListParams, listCalls, listOf, renderApp } from '../test-utils';
 
 beforeEach(() => {
   global.fetch = jest.fn();
@@ -24,7 +8,7 @@ beforeEach(() => {
 
 test('lists students from the API', async () => {
   fetch.mockReturnValueOnce(listOf([ayham]));
-  render(<App />);
+  renderApp();
 
   expect(await screen.findByText('Ayham Kattan')).toBeInTheDocument();
   expect(screen.getByText('ayham@example.com')).toBeInTheDocument();
@@ -33,13 +17,13 @@ test('lists students from the API', async () => {
 
 test('shows an empty state', async () => {
   fetch.mockReturnValueOnce(listOf([]));
-  render(<App />);
+  renderApp();
   expect(await screen.findByText(/No students yet/)).toBeInTheDocument();
 });
 
 test('shows an error when the API is unreachable', async () => {
   fetch.mockRejectedValueOnce(new TypeError('Failed to fetch'));
-  render(<App />);
+  renderApp();
   expect(await screen.findByRole('alert')).toHaveTextContent('Cannot reach the server');
 });
 
@@ -48,7 +32,7 @@ test('creates a student and reloads the list', async () => {
     .mockReturnValueOnce(listOf([]))
     .mockReturnValueOnce(json(201, { data: ayham }))
     .mockReturnValueOnce(listOf([ayham]));
-  render(<App />);
+  renderApp();
   await screen.findByText(/No students yet/);
 
   userEvent.click(screen.getAllByRole('button', { name: 'Add student' })[0]);
@@ -72,7 +56,7 @@ test('shows server validation errors next to each field', async () => {
       error: { message: 'Validation failed', details: { name: 'name is required', email: 'email is invalid' } },
     })
   );
-  render(<App />);
+  renderApp();
   await screen.findByText(/No students yet/);
 
   userEvent.click(screen.getAllByRole('button', { name: 'Add student' })[0]);
@@ -87,7 +71,7 @@ test('shows a duplicate email (409) on the email field', async () => {
   fetch
     .mockReturnValueOnce(listOf([ayham]))
     .mockReturnValueOnce(json(409, { error: { message: 'A student with this email already exists' } }));
-  render(<App />);
+  renderApp();
 
   userEvent.click(await screen.findByRole('button', { name: 'Edit Ayham Kattan' }));
   const dialog = screen.getByRole('dialog');
@@ -106,7 +90,7 @@ test('deletes a student after confirmation', async () => {
     .mockReturnValueOnce(listOf([ayham]))
     .mockReturnValueOnce(Promise.resolve({ ok: true, status: 204 }))
     .mockReturnValueOnce(listOf([]));
-  render(<App />);
+  renderApp();
 
   userEvent.click(await screen.findByRole('button', { name: 'Delete Ayham Kattan' }));
   userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
@@ -116,13 +100,9 @@ test('deletes a student after confirmation', async () => {
   expect(fetch.mock.calls[1]).toEqual([url('/students/1'), expect.objectContaining({ method: 'DELETE' })]);
 });
 
-// Answers every list request from a fixed set, so tests can focus on the URLs the UI calls.
-const listCalls = () => fetch.mock.calls.map(([u]) => u).filter((u) => u.includes('/api/students?'));
-const lastListParams = () => new URL(listCalls().at(-1), 'http://x').searchParams;
-
 test('searches by name or email through the API', async () => {
   fetch.mockImplementation(() => listOf([ayham]));
-  render(<App />);
+  renderApp();
   await screen.findByText('Ayham Kattan');
 
   userEvent.type(screen.getByRole('searchbox', { name: /search students/i }), 'ayh');
@@ -135,7 +115,7 @@ test('searches by name or email through the API', async () => {
 
 test('shows a no-results message for a search', async () => {
   fetch.mockImplementation((u) => listOf(u.includes('search=') ? [] : [ayham]));
-  render(<App />);
+  renderApp();
   await screen.findByText('Ayham Kattan');
 
   userEvent.type(screen.getByRole('searchbox'), 'zzz');
@@ -144,7 +124,7 @@ test('shows a no-results message for a search', async () => {
 
 test('sorts a column ascending, then descending, through the API', async () => {
   fetch.mockImplementation(() => listOf([ayham]));
-  render(<App />);
+  renderApp();
   await screen.findByText('Ayham Kattan');
 
   const nameHeader = () => screen.getByRole('columnheader', { name: /name/i });
@@ -162,7 +142,7 @@ test('sorts a column ascending, then descending, through the API', async () => {
 
 test('every data column is sortable, actions is not', async () => {
   fetch.mockImplementation(() => listOf([ayham]));
-  render(<App />);
+  renderApp();
   await screen.findByText('Ayham Kattan');
 
   for (const name of ['ID', 'Name', 'Email', 'Phone', 'Department', 'Created']) {
@@ -170,4 +150,53 @@ test('every data column is sortable, actions is not', async () => {
     expect(within(header).getByRole('button')).toBeInTheDocument();
   }
   expect(within(screen.getByRole('columnheader', { name: /actions/i })).queryByRole('button')).toBeNull();
+});
+
+describe('routing and URL state', () => {
+  const location = () => screen.getByTestId('location').textContent;
+
+  test('"/" opens the students page', async () => {
+    fetch.mockImplementation(() => listOf([ayham]));
+    renderApp('/');
+    expect(await screen.findByRole('heading', { name: 'Students' })).toBeInTheDocument();
+    expect(location()).toBe('/students');
+  });
+
+  test('search, sort and page are restored from the URL', async () => {
+    fetch.mockImplementation(() => listOf([ayham]));
+    renderApp('/students?page=2&search=ali&sortBy=name&sortOrder=asc');
+    await screen.findByText('Ayham Kattan');
+
+    const params = lastListParams();
+    expect(Object.fromEntries(params)).toMatchObject({ page: '2', search: 'ali', sortBy: 'name', sortOrder: 'asc' });
+    expect(screen.getByRole('searchbox')).toHaveValue('ali');
+    expect(screen.getByRole('columnheader', { name: /name/i })).toHaveAttribute('aria-sort', 'ascending');
+  });
+
+  test('searching and sorting are written to the URL', async () => {
+    fetch.mockImplementation(() => listOf([ayham]));
+    renderApp();
+    await screen.findByText('Ayham Kattan');
+
+    userEvent.type(screen.getByRole('searchbox'), 'ali');
+    await waitFor(() => expect(location()).toBe('/students?search=ali'));
+
+    userEvent.click(within(screen.getByRole('columnheader', { name: /email/i })).getByRole('button'));
+    await waitFor(() => expect(location()).toBe('/students?search=ali&sortBy=email&sortOrder=asc'));
+  });
+
+  test('a student name links to the details page', async () => {
+    fetch.mockImplementation((u) => (u.includes('/students?') ? listOf([ayham]) : json(200, { data: ayham })));
+    renderApp();
+
+    userEvent.click(await screen.findByRole('link', { name: /Ayham Kattan/ }));
+    expect(await screen.findByRole('heading', { name: 'Ayham Kattan' })).toBeInTheDocument();
+    expect(location()).toBe('/students/1');
+  });
+
+  test('unknown routes show a 404 page', async () => {
+    renderApp('/nope');
+    expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to students' })).toHaveAttribute('href', '/students');
+  });
 });

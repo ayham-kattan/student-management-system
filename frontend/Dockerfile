@@ -2,7 +2,8 @@
 FROM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# Reuse downloaded packages between builds (BuildKit cache), so a lockfile change doesn't refetch everything.
+RUN --mount=type=cache,target=/root/.npm npm ci --prefer-offline --no-audit --no-fund
 COPY . .
 # Empty API URL: the app calls /api on its own origin and nginx forwards it.
 ENV REACT_APP_API_URL= \

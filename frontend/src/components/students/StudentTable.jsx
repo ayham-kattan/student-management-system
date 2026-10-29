@@ -1,9 +1,8 @@
 import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import Avatar from './Avatar';
-import { PencilIcon, TrashIcon } from './icons';
-
-const formatDate = (iso) =>
-  new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+import { Link } from 'react-router-dom';
+import Avatar from '../ui/Avatar';
+import { PencilIcon, TrashIcon } from '../ui/icons';
+import { formatDate } from '../../utils/format';
 
 const Muted = () => <span className="text-slate-300">—</span>;
 
@@ -19,10 +18,15 @@ const columns = [
     accessorKey: 'name',
     header: 'Name',
     cell: (info) => (
-      <div className="flex items-center gap-3">
+      <Link
+        to={`/students/${info.row.original.studentId}`}
+        className="group/name flex items-center gap-3 rounded outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+      >
         <Avatar name={info.getValue()} />
-        <span className="font-medium text-slate-900">{info.getValue()}</span>
-      </div>
+        <span className="font-medium text-slate-900 group-hover/name:text-indigo-600 group-hover/name:underline">
+          {info.getValue()}
+        </span>
+      </Link>
     ),
   },
   {
