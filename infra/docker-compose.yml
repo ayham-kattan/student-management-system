@@ -1,6 +1,19 @@
 # Full stack:            docker compose -f infra/docker-compose.yml up -d --build
+#                        → app: http://localhost:3080   API: http://localhost:5050/api
 # Redis only (local dev): docker compose -f infra/docker-compose.yml up -d redis
 services:
+  web:
+    build:
+      context: ../frontend
+      target: production
+    container_name: sms-web
+    ports:
+      - "${WEB_PORT:-3080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
   api:
     build:
       context: ../backend
@@ -9,7 +22,7 @@ services:
     environment:
       APP_ENV: docker
       PORT: 5000
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3080}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_USER: root
