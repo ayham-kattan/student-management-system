@@ -1,16 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { studentsApi } from './api/students';
 import Modal from './components/Modal';
 import Pagination from './components/Pagination';
+import SearchBox from './components/SearchBox';
 import StudentForm from './components/StudentForm';
 import StudentTable from './components/StudentTable';
+import useDebouncedValue from './hooks/useDebouncedValue';
 
 const PAGE_SIZE = 10;
+const DEFAULT_SORT = [{ id: 'studentId', desc: true }];
 
 function App() {
   const [students, setStudents] = useState([]);
   const [meta, setMeta] = useState(null);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [sorting, setSorting] = useState(DEFAULT_SORT);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -18,28 +23,54 @@ function App() {
   const [dialog, setDialog] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const load = useCallback(async (p) => {
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  const latestRequest = useRef(0);
+
+  // A new search starts again from page 1. Adjusting state during render (instead of in an
+  // effect) avoids fetching the old page with the new search first.
+  const [prevSearch, setPrevSearch] = useState(debouncedSearch);
+  if (prevSearch !== debouncedSearch) {
+    setPrevSearch(debouncedSearch);
+    setPage(1);
+  }
+
+  const changeSorting = (updater) => {
+    setSorting(updater);
+    setPage(1);
+  };
+
+  const load = useCallback(async () => {
+    const requestId = ++latestRequest.current;
     setLoading(true);
     setError('');
     try {
-      const res = await studentsApi.list(p, PAGE_SIZE);
+      const [{ id: sortBy, desc }] = sorting;
+      const res = await studentsApi.list({
+        page,
+        limit: PAGE_SIZE,
+        search: debouncedSearch,
+        sortBy,
+        sortOrder: desc ? 'desc' : 'asc',
+      });
+      // A newer request (faster typing, another click) has started: drop this stale response.
+      if (requestId !== latestRequest.current) return;
       // Deleting the last row of a page leaves it empty: step back one page.
-      if (res.data.length === 0 && p > 1) {
-        setPage(p - 1);
+      if (res.data.length === 0 && page > 1) {
+        setPage(page - 1);
         return;
       }
       setStudents(res.data);
       setMeta(res.meta);
     } catch (err) {
-      setError(err.message);
+      if (requestId === latestRequest.current) setError(err.message);
     } finally {
-      setLoading(false);
+      if (requestId === latestRequest.current) setLoading(false);
     }
-  }, []);
+  }, [page, debouncedSearch, sorting]);
 
   useEffect(() => {
-    load(page);
-  }, [page, load]);
+    load();
+  }, [load]);
 
   useEffect(() => {
     if (!notice) return;
@@ -53,15 +84,12 @@ function App() {
     if (dialog.mode === 'edit') {
       await studentsApi.update(dialog.student.studentId, values);
       setNotice('Student updated');
-      await load(page);
     } else {
       await studentsApi.create(values);
       setNotice('Student added');
-      // Newest students are listed first
-      if (page === 1) await load(1);
-      else setPage(1);
     }
     setDialog(null);
+    await load();
   };
 
   const confirmDelete = async () => {
@@ -70,7 +98,7 @@ function App() {
       await studentsApi.remove(dialog.student.studentId);
       setNotice('Student deleted');
       setDialog(null);
-      await load(page);
+      await load();
     } catch (err) {
       setError(err.message);
       setDialog(null);
@@ -78,6 +106,8 @@ function App() {
       setDeleting(false);
     }
   };
+
+  const firstLoad = loading && meta === null;
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -94,6 +124,10 @@ function App() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6">
+        <div className="mb-4">
+          <SearchBox value={search} onChange={setSearch} />
+        </div>
+
         {notice && (
           <div role="status" className="mb-4 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
             {notice}
@@ -102,25 +136,39 @@ function App() {
         {error && (
           <div role="alert" className="mb-4 flex items-center justify-between rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
             <span>{error}</span>
-            <button onClick={() => load(page)} className="font-medium underline">
+            <button onClick={load} className="font-medium underline">
               Retry
             </button>
           </div>
         )}
 
-        {loading && students.length === 0 ? (
+        {firstLoad ? (
           <p className="py-16 text-center text-slate-500">Loading students…</p>
         ) : (
-          !error && (
+          !error &&
+          (students.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center text-slate-500">
+              {debouncedSearch ? (
+                <>No students match “{debouncedSearch}”.</>
+              ) : (
+                <>
+                  No students yet. Click <span className="font-medium">Add student</span> to create one.
+                </>
+              )}
+            </div>
+          ) : (
             <>
               <StudentTable
                 students={students}
+                sorting={sorting}
+                onSortingChange={changeSorting}
+                busy={loading}
                 onEdit={(student) => setDialog({ mode: 'edit', student })}
                 onDelete={(student) => setDialog({ mode: 'delete', student })}
               />
               <Pagination meta={meta} onPage={setPage} />
             </>
-          )
+          ))
         )}
       </main>
 

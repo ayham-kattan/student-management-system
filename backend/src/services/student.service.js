@@ -2,26 +2,18 @@ const repo = require('../repositories/student.repository');
 const cache = require('../cache/studentCache');
 const AppError = require('../utils/AppError');
 
-const MAX_LIMIT = 100;
-
-function toPaging({ page, limit }) {
-  const p = Math.max(parseInt(page) || 1, 1);
-  const l = Math.min(Math.max(parseInt(limit) || 20, 1), MAX_LIMIT);
-  return { page: p, limit: l, offset: (p - 1) * l };
-}
-
+// `query` comes from studentValidator.parseListQuery.
 async function list(query) {
-  const { page, limit, offset } = toPaging(query);
-
-  const cached = await cache.getList(page, limit);
+  const cached = await cache.getList(query);
   if (cached) return cached;
 
-  const { rows, total } = await repo.findAll({ limit, offset });
+  const { page, limit, search, sortBy, sortOrder } = query;
+  const { rows, total } = await repo.findAll(query);
   const result = {
     data: rows,
-    meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    meta: { page, limit, total, totalPages: Math.ceil(total / limit), search, sortBy, sortOrder },
   };
-  await cache.setList(page, limit, result);
+  await cache.setList(query, result);
   return result;
 }
 

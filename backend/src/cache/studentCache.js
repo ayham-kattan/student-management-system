@@ -17,19 +17,21 @@ async function safe(fn, fallback = null) {
   }
 }
 
-async function listKey(page, limit) {
+// Search is lowercased because MySQL matching is case-insensitive: "Ali" and "ali" share a key.
+async function listKey({ page, limit, search, sortBy, sortOrder }) {
   const version = (await safe(() => client.get(VERSION_KEY))) || '0';
-  return `students:list:v${version}:p${page}:l${limit}`;
+  const q = encodeURIComponent(search.toLowerCase());
+  return `students:list:v${version}:p${page}:l${limit}:s${sortBy}.${sortOrder}:q${q}`;
 }
 
-async function getList(page, limit) {
-  const key = await listKey(page, limit);
+async function getList(query) {
+  const key = await listKey(query);
   const cached = await safe(() => client.get(key));
   return cached ? JSON.parse(cached) : null;
 }
 
-async function setList(page, limit, data) {
-  const key = await listKey(page, limit);
+async function setList(query, data) {
+  const key = await listKey(query);
   await safe(() => client.set(key, JSON.stringify(data), { EX: config.redis.ttl.list }));
 }
 

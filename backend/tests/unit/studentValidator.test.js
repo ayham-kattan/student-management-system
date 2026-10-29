@@ -1,4 +1,4 @@
-const { validateStudent, parseId } = require('../../src/utils/studentValidator');
+const { validateStudent, parseId, parseListQuery } = require('../../src/utils/studentValidator');
 const AppError = require('../../src/utils/AppError');
 
 function validationErrors(body) {
@@ -62,6 +62,52 @@ describe('validateStudent', () => {
       name: 'name is required',
       email: 'email is required',
     });
+  });
+});
+
+describe('parseListQuery', () => {
+  it('applies defaults', () => {
+    expect(parseListQuery({})).toEqual({
+      page: 1,
+      limit: 20,
+      offset: 0,
+      search: '',
+      sortBy: 'studentId',
+      sortOrder: 'desc',
+      sortColumn: 'student_id',
+    });
+  });
+
+  it('maps API sort fields to SQL columns', () => {
+    expect(parseListQuery({ sortBy: 'createdDate', sortOrder: 'ASC' })).toMatchObject({
+      sortColumn: 'created_date',
+      sortOrder: 'asc',
+    });
+  });
+
+  it('trims the search term', () => {
+    expect(parseListQuery({ search: '  ali  ' }).search).toBe('ali');
+  });
+
+  it.each([
+    [{ page: '3', limit: '20' }, { page: 3, limit: 20, offset: 40 }],
+    [{ page: '0', limit: '0' }, { page: 1, limit: 20, offset: 0 }],
+    [{ page: '-2', limit: '500' }, { page: 1, limit: 100, offset: 0 }],
+    [{ page: 'x', limit: 'y' }, { page: 1, limit: 20, offset: 0 }],
+  ])('clamps paging %p', (query, expected) => {
+    expect(parseListQuery(query)).toMatchObject(expected);
+  });
+
+  it('rejects unknown sort fields, so nothing unsafe reaches ORDER BY', () => {
+    expect(() => parseListQuery({ sortBy: 'name; DROP TABLE students' })).toThrow(
+      expect.objectContaining({ statusCode: 400, details: { sortBy: expect.any(String) } })
+    );
+  });
+
+  it('rejects an invalid sort order and an over-long search', () => {
+    expect(() => parseListQuery({ sortOrder: 'up', search: 'x'.repeat(101) })).toThrow(
+      expect.objectContaining({ details: { sortOrder: expect.any(String), search: expect.any(String) } })
+    );
   });
 });
 

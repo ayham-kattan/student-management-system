@@ -13,7 +13,7 @@ describe('studentCache when Redis is unavailable', () => {
 
   it('acts as a cache miss instead of failing', async () => {
     await expect(cache.getItem(1)).resolves.toBeNull();
-    await expect(cache.getList(1, 20)).resolves.toBeNull();
+    await expect(cache.getList({ page: 1, limit: 20, search: '', sortBy: 'studentId', sortOrder: 'desc' })).resolves.toBeNull();
     await expect(cache.invalidate(1)).resolves.toBeUndefined();
     expect(client.get).not.toHaveBeenCalled();
   });

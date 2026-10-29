@@ -16,8 +16,8 @@ paths:
   /students:
     get:
       tags: [Students]
-      summary: List students
-      description: Newest students first.
+      summary: List, search and sort students
+      description: Defaults to newest first. `search` matches name or email (case-insensitive, partial).
       operationId: listStudents
       parameters:
         - name: page
@@ -26,12 +26,36 @@ paths:
         - name: limit
           in: query
           schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: search
+          in: query
+          description: Text to find in the student's name or email.
+          schema: { type: string, maxLength: 100 }
+          example: ali
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [studentId, name, email, phone, department, createdDate]
+            default: studentId
+        - name: sortOrder
+          in: query
+          schema: { type: string, enum: [asc, desc], default: desc }
       responses:
         '200':
           description: A page of students
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StudentList' }
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  message: Invalid query parameters
+                  details:
+                    sortBy: 'sortBy must be one of: studentId, name, email, phone, department, createdDate'
 
     post:
       tags: [Students]
@@ -218,6 +242,9 @@ components:
             limit: { type: integer, example: 20 }
             total: { type: integer, example: 1 }
             totalPages: { type: integer, example: 1 }
+            search: { type: string, example: '' }
+            sortBy: { type: string, example: studentId }
+            sortOrder: { type: string, enum: [asc, desc], example: desc }
 
     Error:
       type: object

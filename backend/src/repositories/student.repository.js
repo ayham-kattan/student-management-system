@@ -9,12 +9,25 @@ const COLUMNS = `
   created_date AS createdDate
 `;
 
-async function findAll({ limit, offset }) {
+// Escape LIKE wildcards so a search for "a_b" or "100%" matches literally.
+const escapeLike = (s) => s.replace(/[\\%_]/g, '\\$&');
+
+// sortColumn must come from the whitelist in studentValidator.parseListQuery.
+async function findAll({ limit, offset, search, sortColumn, sortOrder }) {
+  const where = search ? 'WHERE name LIKE ? OR email LIKE ?' : '';
+  const params = search ? Array(2).fill(`%${escapeLike(search)}%`) : [];
+  const direction = sortOrder === 'asc' ? 'ASC' : 'DESC';
+  // student_id as a tie-breaker keeps paging stable when sorted values repeat.
+  const orderBy =
+    sortColumn === 'student_id'
+      ? `student_id ${direction}`
+      : `${sortColumn} ${direction}, student_id ${direction}`;
+
   const [rows] = await pool.query(
-    `SELECT ${COLUMNS} FROM students ORDER BY student_id DESC LIMIT ? OFFSET ?`,
-    [limit, offset]
+    `SELECT ${COLUMNS} FROM students ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
   );
-  const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM students');
+  const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM students ${where}`, params);
   return { rows, total };
 }
 

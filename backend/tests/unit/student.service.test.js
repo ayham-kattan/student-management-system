@@ -4,6 +4,7 @@ jest.mock('../../src/cache/studentCache');
 const repo = require('../../src/repositories/student.repository');
 const cache = require('../../src/cache/studentCache');
 const service = require('../../src/services/student.service');
+const { parseListQuery } = require('../../src/utils/studentValidator');
 
 const student = { studentId: 7, name: 'A', email: 'a@b.co', phone: null, department: null };
 const input = { name: 'A', email: 'a@b.co', phone: null, department: null };
@@ -12,11 +13,14 @@ const dupError = Object.assign(new Error('Duplicate entry'), { code: 'ER_DUP_ENT
 beforeEach(() => jest.resetAllMocks());
 
 describe('list', () => {
+  const query = parseListQuery({ page: '3', limit: '20', search: 'ali', sortBy: 'name', sortOrder: 'asc' });
+
   it('returns the cached page without hitting the database', async () => {
     const cached = { data: [student], meta: {} };
     cache.getList.mockResolvedValue(cached);
 
-    await expect(service.list({})).resolves.toBe(cached);
+    await expect(service.list(query)).resolves.toBe(cached);
+    expect(cache.getList).toHaveBeenCalledWith(query);
     expect(repo.findAll).not.toHaveBeenCalled();
   });
 
@@ -24,24 +28,19 @@ describe('list', () => {
     cache.getList.mockResolvedValue(null);
     repo.findAll.mockResolvedValue({ rows: [student], total: 41 });
 
-    const result = await service.list({ page: '3', limit: '20' });
+    const result = await service.list(query);
 
-    expect(repo.findAll).toHaveBeenCalledWith({ limit: 20, offset: 40 });
-    expect(result.meta).toEqual({ page: 3, limit: 20, total: 41, totalPages: 3 });
-    expect(cache.setList).toHaveBeenCalledWith(3, 20, result);
-  });
-
-  it.each([
-    [{}, { limit: 20, offset: 0 }],
-    [{ page: '0', limit: '0' }, { limit: 20, offset: 0 }],
-    [{ page: '-2', limit: '500' }, { limit: 100, offset: 0 }],
-    [{ page: 'x', limit: 'y' }, { limit: 20, offset: 0 }],
-  ])('clamps paging %p', async (query, expected) => {
-    cache.getList.mockResolvedValue(null);
-    repo.findAll.mockResolvedValue({ rows: [], total: 0 });
-
-    await service.list(query);
-    expect(repo.findAll).toHaveBeenCalledWith(expected);
+    expect(repo.findAll).toHaveBeenCalledWith(query);
+    expect(result.meta).toEqual({
+      page: 3,
+      limit: 20,
+      total: 41,
+      totalPages: 3,
+      search: 'ali',
+      sortBy: 'name',
+      sortOrder: 'asc',
+    });
+    expect(cache.setList).toHaveBeenCalledWith(query, result);
   });
 });
 
