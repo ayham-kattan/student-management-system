@@ -19,11 +19,13 @@ const initials = (name) =>
 // Same name -> same colour, so a student is easy to spot across pages.
 const colorFor = (name) => COLORS[[...name].reduce((h, c) => h + c.charCodeAt(0), 0) % COLORS.length];
 
-export default function Avatar({ name }) {
+const SIZES = { md: 'h-9 w-9 text-xs', lg: 'h-14 w-14 text-lg' };
+
+export default function Avatar({ name, size = 'md' }) {
   return (
     <span
       aria-hidden="true"
-      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${colorFor(name)}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full font-semibold ${SIZES[size]} ${colorFor(name)}`}
     >
       {initials(name)}
     </span>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { AlertIcon } from './icons';
+import { AlertIcon } from '../ui/icons';
+import Button from '../ui/Button';
 
 const FIELDS = [
   { name: 'name', label: 'Full name', type: 'text', required: true, maxLength: 100, placeholder: 'Ayham Kattan', wide: true },
@@ -76,20 +77,12 @@ export default function StudentForm({ initial, onSubmit, onCancel }) {
       )}
 
       <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50"
-        >
+        <Button variant="secondary" onClick={onCancel}>
           Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-60"
-        >
+        </Button>
+        <Button type="submit" disabled={saving}>
           {saving ? 'Saving…' : 'Save'}
-        </button>
+        </Button>
       </div>
     </form>
   );
