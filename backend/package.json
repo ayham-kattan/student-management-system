@@ -7,7 +7,9 @@
     "start": "node --env-file=.env index.js",
     "dev": "node --env-file=.env --watch index.js",
     "start:staging": "node --env-file=.env.staging index.js",
-    "dev:staging": "node --env-file=.env.staging --watch index.js"
+    "dev:staging": "node --env-file=.env.staging --watch index.js",
+    "migrate": "node --env-file=.env src/db/migrate.js",
+    "migrate:staging": "node --env-file=.env.staging src/db/migrate.js"
   },
   "dependencies": {
     "cors": "^2.8.6",
