@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { AlertIcon } from './icons';
 
 const FIELDS = [
-  { name: 'name', label: 'Name', type: 'text', required: true, maxLength: 100 },
-  { name: 'email', label: 'Email', type: 'email', required: true, maxLength: 100 },
+  { name: 'name', label: 'Full name', type: 'text', required: true, maxLength: 100, placeholder: 'Ayham Kattan', wide: true },
+  { name: 'email', label: 'Email', type: 'email', required: true, maxLength: 100, placeholder: 'name@example.com', wide: true },
   { name: 'phone', label: 'Phone', type: 'tel', maxLength: 20, placeholder: '+968 9123 4567' },
-  { name: 'department', label: 'Department', type: 'text', maxLength: 50 },
+  { name: 'department', label: 'Department', type: 'text', maxLength: 50, placeholder: 'Computer Science' },
 ];
 
 const EMPTY = { name: '', email: '', phone: '', department: '' };
@@ -37,54 +38,55 @@ export default function StudentForm({ initial, onSubmit, onCancel }) {
   };
 
   return (
-    <form onSubmit={submit} noValidate className="space-y-4">
-      {FIELDS.map((f) => (
-        <div key={f.name}>
-          <label htmlFor={f.name} className="mb-1 block text-sm font-medium text-slate-700">
-            {f.label} {f.required && <span className="text-red-500">*</span>}
-          </label>
-          <input
-            id={f.name}
-            name={f.name}
-            type={f.type}
-            value={values[f.name]}
-            onChange={change}
-            maxLength={f.maxLength}
-            placeholder={f.placeholder}
-            aria-invalid={Boolean(errors[f.name])}
-            aria-describedby={errors[f.name] ? `${f.name}-error` : undefined}
-            className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${
-              errors[f.name]
-                ? 'border-red-400 focus:ring-red-200'
-                : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200'
-            }`}
-          />
-          {errors[f.name] && (
-            <p id={`${f.name}-error`} className="mt-1 text-xs text-red-600">
-              {errors[f.name]}
-            </p>
-          )}
-        </div>
-      ))}
+    <form onSubmit={submit} noValidate>
+      <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+        {FIELDS.map((f) => (
+          <div key={f.name} className={f.wide ? 'sm:col-span-2' : ''}>
+            <label htmlFor={f.name} className="mb-1.5 block text-sm font-medium text-slate-700">
+              {f.label} {f.required ? <span className="text-red-500">*</span> : <span className="font-normal text-slate-400">(optional)</span>}
+            </label>
+            <input
+              id={f.name}
+              name={f.name}
+              type={f.type}
+              value={values[f.name]}
+              onChange={change}
+              maxLength={f.maxLength}
+              placeholder={f.placeholder}
+              aria-invalid={Boolean(errors[f.name])}
+              aria-describedby={errors[f.name] ? `${f.name}-error` : undefined}
+              className={`block w-full rounded-lg border-0 px-3 py-2 text-sm text-slate-900 shadow-sm ring-1 ring-inset placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-inset ${
+                errors[f.name] ? 'ring-red-300 focus:ring-red-500' : 'ring-slate-300 focus:ring-indigo-500'
+              }`}
+            />
+            {errors[f.name] && (
+              <p id={`${f.name}-error`} className="mt-1.5 text-xs text-red-600">
+                {errors[f.name]}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
 
       {formError && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div role="alert" className="mt-4 flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700">
+          <AlertIcon className="h-4 w-4 shrink-0" />
           {formError}
-        </p>
+        </div>
       )}
 
-      <div className="flex justify-end gap-2 pt-2">
+      <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-60"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
