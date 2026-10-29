@@ -1,0 +1,47 @@
+# Runs the whole Jest suite against throwaway MySQL + Redis containers.
+#
+#   docker compose -f infra/docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
+#   docker compose -f infra/docker-compose.test.yml down -v
+#
+# No ports are published and data lives in tmpfs, so it never clashes with dev containers.
+name: sms-test
+
+services:
+  tests:
+    build:
+      context: ../backend
+      target: test
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: test
+      DB_NAME_TEST: student_db_test
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB_TEST: 1
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: test
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -ptest --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10

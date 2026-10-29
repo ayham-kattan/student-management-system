@@ -1,0 +1,275 @@
+openapi: 3.0.3
+info:
+  title: Student Management API
+  version: 0.1.0
+  description: CRUD API for student records. Reads are cached in Redis; writes go to MySQL and clear the cache.
+
+servers:
+  - url: /api
+    description: Current server
+
+tags:
+  - name: Students
+  - name: Health
+
+paths:
+  /students:
+    get:
+      tags: [Students]
+      summary: List students
+      description: Newest students first.
+      operationId: listStudents
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: A page of students
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentList' }
+
+    post:
+      tags: [Students]
+      summary: Create a student
+      operationId: createStudent
+      requestBody:
+        $ref: '#/components/requestBodies/StudentInput'
+      responses:
+        '201':
+          description: Student created
+          headers:
+            Location:
+              description: URL of the new student
+              schema: { type: string, example: /api/students/1 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/EmailConflict' }
+
+  /students/{id}:
+    parameters:
+      - $ref: '#/components/parameters/StudentId'
+
+    get:
+      tags: [Students]
+      summary: Get a student
+      operationId: getStudent
+      responses:
+        '200':
+          description: The student
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentResponse' }
+        '400': { $ref: '#/components/responses/InvalidId' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+    put:
+      tags: [Students]
+      summary: Update a student
+      description: Replaces the whole record. Optional fields that are omitted are set to `null`.
+      operationId: updateStudent
+      requestBody:
+        $ref: '#/components/requestBodies/StudentInput'
+      responses:
+        '200':
+          description: The updated student
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/EmailConflict' }
+
+    delete:
+      tags: [Students]
+      summary: Delete a student
+      operationId: deleteStudent
+      responses:
+        '204':
+          description: Deleted
+        '400': { $ref: '#/components/responses/InvalidId' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /health:
+    get:
+      tags: [Health]
+      summary: API health
+      operationId: health
+      responses:
+        '200':
+          description: API is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  env: { type: string, example: development }
+
+  /db-health:
+    get:
+      tags: [Health]
+      summary: MySQL health
+      operationId: dbHealth
+      responses:
+        '200':
+          description: MySQL is reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  database: { type: string, example: student_db }
+        '500':
+          $ref: '#/components/responses/HealthError'
+
+  /redis-health:
+    get:
+      tags: [Health]
+      summary: Redis health
+      operationId: redisHealth
+      responses:
+        '200':
+          description: Redis is reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  redis: { type: string, example: pong }
+        '500':
+          $ref: '#/components/responses/HealthError'
+
+components:
+  parameters:
+    StudentId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      example: 1
+
+  requestBodies:
+    StudentInput:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/StudentInput' }
+
+  schemas:
+    StudentInput:
+      type: object
+      required: [name, email]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          example: Ayham Kattan
+        email:
+          type: string
+          format: email
+          maxLength: 100
+          description: Must be unique. Stored lowercase.
+          example: ayham@example.com
+        phone:
+          type: string
+          nullable: true
+          pattern: '^\+?[0-9\s-]{6,20}$'
+          example: +968 9123 4567
+        department:
+          type: string
+          nullable: true
+          maxLength: 50
+          example: Computer Science
+
+    Student:
+      type: object
+      properties:
+        studentId: { type: integer, example: 1 }
+        name: { type: string, example: Ayham Kattan }
+        email: { type: string, example: ayham@example.com }
+        phone: { type: string, nullable: true, example: +968 9123 4567 }
+        department: { type: string, nullable: true, example: Computer Science }
+        createdDate: { type: string, format: date-time, example: '2026-10-29T10:43:59.000Z' }
+
+    StudentResponse:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/Student' }
+
+    StudentList:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Student' }
+        meta:
+          type: object
+          properties:
+            page: { type: integer, example: 1 }
+            limit: { type: integer, example: 20 }
+            total: { type: integer, example: 1 }
+            totalPages: { type: integer, example: 1 }
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message: { type: string }
+            details:
+              type: object
+              additionalProperties: { type: string }
+              description: Present on validation errors only; one entry per invalid field.
+
+  responses:
+    ValidationError:
+      description: Invalid input or malformed JSON
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              message: Validation failed
+              details:
+                name: name is required
+                email: email is invalid
+    InvalidId:
+      description: id is not a positive integer
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error: { message: Invalid student id }
+    NotFound:
+      description: Student not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error: { message: Student not found }
+    EmailConflict:
+      description: Email already belongs to another student
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error: { message: A student with this email already exists }
+    HealthError:
+      description: Dependency is unreachable
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status: { type: string, example: error }
+              message: { type: string }
