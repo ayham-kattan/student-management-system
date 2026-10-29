@@ -51,8 +51,8 @@ test('creates a student and reloads the list', async () => {
   render(<App />);
   await screen.findByText(/No students yet/);
 
-  userEvent.click(screen.getByRole('button', { name: '+ Add student' }));
-  userEvent.type(screen.getByLabelText(/Name/), 'Ayham Kattan');
+  userEvent.click(screen.getAllByRole('button', { name: 'Add student' })[0]);
+  userEvent.type(screen.getByLabelText(/Full name/), 'Ayham Kattan');
   userEvent.type(screen.getByLabelText(/Email/), 'ayham@example.com');
   userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -75,7 +75,7 @@ test('shows server validation errors next to each field', async () => {
   render(<App />);
   await screen.findByText(/No students yet/);
 
-  userEvent.click(screen.getByRole('button', { name: '+ Add student' }));
+  userEvent.click(screen.getAllByRole('button', { name: 'Add student' })[0]);
   userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
   expect(await screen.findByText('name is required')).toBeInTheDocument();
@@ -91,7 +91,7 @@ test('shows a duplicate email (409) on the email field', async () => {
 
   userEvent.click(await screen.findByRole('button', { name: 'Edit Ayham Kattan' }));
   const dialog = screen.getByRole('dialog');
-  expect(within(dialog).getByLabelText(/Name/)).toHaveValue('Ayham Kattan');
+  expect(within(dialog).getByLabelText(/Full name/)).toHaveValue('Ayham Kattan');
 
   userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
 
