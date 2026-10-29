@@ -1,0 +1,311 @@
+{
+  "info": {
+    "name": "Student Management System",
+    "description": "CRUD API for students (Express + MySQL + Redis cache).\n\nRun the **Students** folder top to bottom: it creates a student, reads, updates and deletes it, and checks the error cases. `studentId` and `email` are saved automatically between requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api" },
+    { "key": "studentId", "value": "" },
+    { "key": "email", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('Responds within 2s', () => pm.expect(pm.response.responseTime).to.be.below(2000));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "API health",
+          "request": { "method": "GET", "url": "{{baseUrl}}/health" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status is ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MySQL health",
+          "request": { "method": "GET", "url": "{{baseUrl}}/db-health" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status is ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Redis health",
+          "request": { "method": "GET", "url": "{{baseUrl}}/redis-health" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('redis answers pong', () => pm.expect(pm.response.json().redis).to.eql('pong'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Students",
+      "item": [
+        {
+          "name": "Create student",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/students",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ayham Kattan\",\n  \"email\": \"{{email}}\",\n  \"phone\": \"+968 9123 4567\",\n  \"department\": \"Computer Science\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Unique email so the collection can be run repeatedly",
+                  "pm.collectionVariables.set('email', `student.${Date.now()}@example.com`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const { data } = pm.response.json();",
+                  "pm.test('returns the new student', () => {",
+                  "  pm.expect(data.studentId).to.be.a('number');",
+                  "  pm.expect(data.name).to.eql('Ayham Kattan');",
+                  "  pm.expect(data.email).to.eql(pm.collectionVariables.get('email'));",
+                  "  pm.expect(data.createdDate).to.be.a('string');",
+                  "});",
+                  "pm.test('Location header points to the student', () => {",
+                  "  pm.expect(pm.response.headers.get('Location')).to.eql(`/api/students/${data.studentId}`);",
+                  "});",
+                  "pm.collectionVariables.set('studentId', data.studentId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List students",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/students?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["students"],
+              "query": [
+                { "key": "page", "value": "1", "description": "Page number (default 1)" },
+                { "key": "limit", "value": "20", "description": "Items per page (default 20, max 100)" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has data array and paging meta', () => {",
+                  "  pm.expect(body.data).to.be.an('array');",
+                  "  pm.expect(body.meta).to.include.keys('page', 'limit', 'total', 'totalPages');",
+                  "});",
+                  "pm.test('contains the created student', () => {",
+                  "  const id = Number(pm.collectionVariables.get('studentId'));",
+                  "  pm.expect(body.data.map(s => s.studentId)).to.include(id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get student by id",
+          "request": { "method": "GET", "url": "{{baseUrl}}/students/{{studentId}}" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('returns the right student', () => {",
+                  "  pm.expect(pm.response.json().data.studentId).to.eql(Number(pm.collectionVariables.get('studentId')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update student",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/students/{{studentId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ayham K.\",\n  \"email\": \"{{email}}\",\n  \"phone\": \"+968 9999 0000\",\n  \"department\": \"Engineering\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('fields are updated', () => {",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.name).to.eql('Ayham K.');",
+                  "  pm.expect(data.department).to.eql('Engineering');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get student after update (cache invalidated)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/students/{{studentId}}" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns updated data, not the cached copy', () => {",
+                  "  pm.expect(pm.response.json().data.name).to.eql('Ayham K.');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create student - duplicate email (409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/students",
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Someone Else\",\n  \"email\": \"{{email}}\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('explains the conflict', () => pm.expect(pm.response.json().error.message).to.include('email'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create student - validation error (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/students",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"not-an-email\",\n  \"phone\": \"abc\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('reports every invalid field', () => {",
+                  "  pm.expect(pm.response.json().error.details).to.have.keys('name', 'email', 'phone');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get student - invalid id (400)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/students/abc" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('400 Bad Request', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete student",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/students/{{studentId}}" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('204 No Content', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get deleted student (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/students/{{studentId}}" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('error message', () => pm.expect(pm.response.json().error.message).to.eql('Student not found'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
