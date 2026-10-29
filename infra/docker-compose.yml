@@ -1,12 +1,61 @@
+# Full stack:            docker compose -f infra/docker-compose.yml up -d --build
+# Redis only (local dev): docker compose -f infra/docker-compose.yml up -d redis
 services:
+  api:
+    build:
+      context: ../backend
+      target: production
+    container_name: sms-api
+    environment:
+      APP_ENV: docker
+      PORT: 5000
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      DB_NAME: student_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "${API_PORT:-5050}:5000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    container_name: sms-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+    ports:
+      - "3307:3306" # 3306 is left free for XAMPP
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: sms-redis
     ports:
-      - "6380:6379"
+      - "6380:6379" # 6379 is taken by Memurai on Windows
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
 volumes:
+  mysql-data:
   redis-data:
