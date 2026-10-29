@@ -94,7 +94,7 @@ describe('GET /api/students', () => {
     const res = await request(app).get('/api/students?page=1&limit=2').expect(200);
 
     expect(res.body.data.map((s) => s.studentId)).toEqual([third.studentId, second.studentId]);
-    expect(res.body.meta).toEqual({ page: 1, limit: 2, total: 3, totalPages: 2 });
+    expect(res.body.meta).toMatchObject({ page: 1, limit: 2, total: 3, totalPages: 2 });
 
     const page2 = await request(app).get('/api/students?page=2&limit=2').expect(200);
     expect(page2.body.data.map((s) => s.studentId)).toEqual([first.studentId]);
@@ -106,6 +106,59 @@ describe('GET /api/students', () => {
 
     const res = await request(app).get('/api/students').expect(200);
     expect(res.body.data.map((s) => s.studentId)).toContain(created.studentId);
+  });
+});
+
+describe('GET /api/students search & sort', () => {
+  const ids = (res) => res.body.data.map((s) => s.name);
+
+  beforeEach(async () => {
+    await createStudent({ name: 'Charlie Brown', email: 'charlie@school.com', department: 'Math' });
+    await createStudent({ name: 'alice Smith', email: 'alice@uni.edu', department: 'CS' });
+    await createStudent({ name: 'Bob Stone', email: 'bob.ali@school.com', department: null });
+  });
+
+  it('searches name or email, case-insensitively', async () => {
+    const res = await request(app).get('/api/students?search=ALI&sortBy=name&sortOrder=asc').expect(200);
+    // "alice" matches by name, "bob.ali@" matches by email
+    expect(ids(res)).toEqual(['alice Smith', 'Bob Stone']);
+    expect(res.body.meta).toMatchObject({ total: 2, search: 'ALI', sortBy: 'name', sortOrder: 'asc' });
+  });
+
+  it('matches LIKE wildcards literally', async () => {
+    await createStudent({ name: 'Under_Score', email: 'under@x.com' });
+    const res = await request(app).get('/api/students?search=_').expect(200);
+    expect(ids(res)).toEqual(['Under_Score']);
+
+    const pct = await request(app).get('/api/students?search=%25').expect(200);
+    expect(pct.body.data).toEqual([]);
+  });
+
+  it.each([
+    ['name', 'asc', ['alice Smith', 'Bob Stone', 'Charlie Brown']],
+    ['name', 'desc', ['Charlie Brown', 'Bob Stone', 'alice Smith']],
+    ['email', 'asc', ['alice Smith', 'Bob Stone', 'Charlie Brown']],
+    ['studentId', 'asc', ['Charlie Brown', 'alice Smith', 'Bob Stone']],
+    ['createdDate', 'desc', ['Bob Stone', 'alice Smith', 'Charlie Brown']],
+  ])('sorts by %s %s', async (sortBy, sortOrder, expected) => {
+    const res = await request(app).get(`/api/students?sortBy=${sortBy}&sortOrder=${sortOrder}`).expect(200);
+    expect(ids(res)).toEqual(expected);
+  });
+
+  it('puts NULL departments first when ascending', async () => {
+    const res = await request(app).get('/api/students?sortBy=department&sortOrder=asc').expect(200);
+    expect(res.body.data.map((s) => s.department)).toEqual([null, 'CS', 'Math']);
+  });
+
+  it('caches each search/sort combination separately', async () => {
+    const a = await request(app).get('/api/students?sortBy=name&sortOrder=asc').expect(200);
+    const b = await request(app).get('/api/students?sortBy=name&sortOrder=desc').expect(200);
+    expect(ids(a)).not.toEqual(ids(b));
+  });
+
+  it('returns 400 for an unknown sort field', async () => {
+    const res = await request(app).get('/api/students?sortBy=password').expect(400);
+    expect(res.body.error.details).toHaveProperty('sortBy');
   });
 });
 

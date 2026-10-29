@@ -1,8 +1,8 @@
 const service = require('../services/student.service');
-const { validateStudent, parseId } = require('../utils/studentValidator');
+const { validateStudent, parseId, parseListQuery } = require('../utils/studentValidator');
 
 async function list(req, res) {
-  res.json(await service.list(req.query));
+  res.json(await service.list(parseListQuery(req.query)));
 }
 
 async function getById(req, res) {

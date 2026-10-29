@@ -41,6 +41,38 @@ function validateStudent(body) {
   return student;
 }
 
+// API field -> SQL column. Column names can't be bound as parameters, so only these are allowed.
+const SORTABLE = {
+  studentId: 'student_id',
+  name: 'name',
+  email: 'email',
+  phone: 'phone',
+  department: 'department',
+  createdDate: 'created_date',
+};
+const MAX_LIMIT = 100;
+
+function parseListQuery(query = {}) {
+  const errors = {};
+
+  const page = Math.max(parseInt(query.page) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(query.limit) || 20, 1), MAX_LIMIT);
+
+  const search = typeof query.search === 'string' ? query.search.trim() : '';
+  if (search.length > 100) errors.search = 'search must be at most 100 characters';
+
+  const sortBy = query.sortBy || 'studentId';
+  if (!SORTABLE[sortBy]) errors.sortBy = `sortBy must be one of: ${Object.keys(SORTABLE).join(', ')}`;
+
+  const sortOrder = (query.sortOrder || 'desc').toLowerCase();
+  if (sortOrder !== 'asc' && sortOrder !== 'desc') errors.sortOrder = 'sortOrder must be asc or desc';
+
+  if (Object.keys(errors).length > 0) {
+    throw new AppError(400, 'Invalid query parameters', errors);
+  }
+  return { page, limit, offset: (page - 1) * limit, search, sortBy, sortOrder, sortColumn: SORTABLE[sortBy] };
+}
+
 function parseId(raw) {
   const id = Number(raw);
   if (!Number.isInteger(id) || id <= 0) {
@@ -49,4 +81,4 @@ function parseId(raw) {
   return id;
 }
 
-module.exports = { validateStudent, parseId };
+module.exports = { validateStudent, parseId, parseListQuery };
