@@ -4,6 +4,7 @@ const config = require('./src/config');
 const { pool } = require('./src/db/pool');
 const { client: redis, connectRedis } = require('./src/cache/redis');
 const studentRoutes = require('./src/routes/student.routes');
+const docsRoutes = require('./src/docs/swagger');
 const { notFound, errorHandler } = require('./src/middleware/errorHandler');
 
 const app = express();
@@ -35,6 +36,7 @@ app.get('/api/redis-health', async (req, res) => {
 });
 
 app.use('/api/students', studentRoutes);
+app.use('/api/docs', docsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
